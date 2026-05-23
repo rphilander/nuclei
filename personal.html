@@ -1,0 +1,328 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="nucleus-system" content="personal-llm-wiki">
+  <meta name="nucleus-updated" content="2026-05-22">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.conditional.min.css">
+  <title>Nucleus &mdash; personal LLM wiki</title>
+</head>
+<body>
+  <main class="pico container" data-theme="light">
+  <h1>Nucleus</h1>
+  <p class="meta">
+    Author: Rodrigo<br>
+    Last modified: <time>2026-05-22</time>
+  </p>
+
+  <h2>Preface</h2>
+  <p>
+    This document captures the decisions and reasoning behind
+    my personal LLM wiki &mdash; adapted from the work version
+    I built at Scribd (documented in <code>nucleus.html</code>,
+    kept here as reference). The system is the same architecture
+    (Node+Express, vanilla JS, ttyd, filesystem-as-database) but
+    organized around personal workstreams rather than an
+    engineering leader&rsquo;s function. The primary audience is
+    an LLM rebuilding or extending this system; the format is a
+    captain&rsquo;s log of iterations.
+  </p>
+
+  <hr>
+
+  <section class="log-entry" id="adaptation">
+    <h2>Entry 0 &mdash; Adaptation from work wiki</h2>
+
+    <p>
+      The work wiki was an &ldquo;AI Chief of Staff&rdquo; for an
+      engineering leader at Scribd. The personal version keeps the
+      architecture but changes the organizing principle and sources.
+    </p>
+
+    <p><strong>What carried over unchanged:</strong></p>
+    <ul>
+      <li>Node+Express server on <code>127.0.0.1:3000</code> with
+          <code>/api/tree</code>, <code>/api/page</code>,
+          <code>/api/action-items</code> endpoints.</li>
+      <li>Vanilla JS frontend with three-pane layout (sidebar,
+          content, terminal). No build step.</li>
+      <li>ttyd reverse-proxied at <code>/term/*</code> for
+          same-origin iframe access.</li>
+      <li><code>wiki</code> CLI for lifecycle management.</li>
+      <li>Action items as first-class typed entities with
+          <code>data-status</code>, <code>data-owner</code>,
+          <code>data-due</code> attributes.</li>
+      <li>Declarative source subscriptions on workstream pages
+          via <code>&lt;ul class="channels"&gt;</code>.</li>
+      <li>Proposal pattern &mdash; system proposes, human confirms,
+          never auto-writes.</li>
+      <li>The nucleus format itself.</li>
+    </ul>
+
+    <p><strong>What was dropped:</strong></p>
+    <ul>
+      <li>Sensitivity register and screen-share-safe toggle.
+          No one else sees this wiki; the feature adds complexity
+          for zero value.</li>
+      <li>Slack channel ingestion, Google Docs monitoring, Jira
+          integration. Work-specific sources.</li>
+      <li>Brand directory and usage harvesters. Work-specific
+          reference material.</li>
+    </ul>
+
+    <p><strong>What was adapted:</strong></p>
+    <ul>
+      <li>Workstreams reorganized around personal projects:
+          TrueSpeech (language runtime), LinkedIn visibility,
+          wardrobe reboot, AI developments.</li>
+      <li><code>/morning</code> sources: Gmail MCP, Hacker News
+          API, RSS feeds (Simon Willison), GitHub org activity
+          (truespeech). Replaces Slack+Docs+Jira.</li>
+      <li>Hotkeys: <code>Cmd/Ctrl+\</code> for sidebar,
+          <code>Cmd/Ctrl+Shift+\</code> for forward pane cycle,
+          <code>Cmd/Ctrl+Alt+\</code> for reverse pane cycle.</li>
+    </ul>
+  </section>
+
+  <section class="log-entry" id="sprite-environment">
+    <h2>Entry 1 &mdash; Running in a Sprite VM</h2>
+
+    <p>
+      The wiki runs inside a Sprite VM rather than directly on a
+      laptop. The Sprite machinery automatically forwards ports
+      from the VM to the local MacBook, so
+      <code>localhost:3000</code> on the Mac reaches
+      <code>127.0.0.1:3000</code> in the Sprite. This is
+      transparent for the most part but introduces one constraint:
+      the embedded terminal (via ttyd) must work entirely through
+      the proxied port &mdash; there is no separate port 7681
+      forwarding.
+    </p>
+
+    <p>
+      Sprite checkpoints (not snapshots) are the rollback
+      mechanism. Take checkpoints at milestones and before risky
+      changes: <code>sprite-env checkpoints create --comment
+      "description"</code>.
+    </p>
+  </section>
+
+  <section class="log-entry" id="proxy-path-fix">
+    <h2>Entry 2 &mdash; ttyd proxy: path preservation</h2>
+
+    <p>
+      First bug. The terminal iframe showed a 404 instead of a
+      shell. Root cause: <code>app.use('/term', proxy)</code> in
+      Express strips the <code>/term</code> prefix from
+      <code>req.url</code> before handing to the proxy middleware.
+      The proxy then forwarded <code>GET /</code> to ttyd, but
+      ttyd was launched with <code>-b /term</code> and expects the
+      prefix.
+    </p>
+
+    <p>
+      Fix: use <code>pathFilter: '/term'</code> in the proxy
+      config instead of Express&rsquo;s mount-path stripping. The
+      full path reaches ttyd intact. A one-line conceptual change
+      that was invisible until the 404 appeared.
+    </p>
+  </section>
+
+  <section class="log-entry" id="ttyd-writable">
+    <h2>Entry 3 &mdash; ttyd writable mode</h2>
+
+    <p>
+      Second bug. The terminal rendered correctly but ignored all
+      keyboard input. The ttyd log said:
+      <code>The --writable option is not set, will start in
+      readonly mode</code>. ttyd v1.7.x defaults to read-only;
+      the <code>-W</code> flag is required for interactive use.
+      The work wiki had this; it was missed during adaptation.
+    </p>
+  </section>
+
+  <section class="log-entry" id="terminal-cwd">
+    <h2>Entry 4 &mdash; Terminal working directory</h2>
+
+    <p>
+      Third friction point. The shell inside the terminal started
+      in <code>_app/</code> instead of the wiki root
+      (<code>/home/sprite</code>). This matters because
+      <code>claude --resume</code> needs to run from the project
+      root to find the correct session. Root cause: the
+      <code>wiki up</code> command was <code>cd</code>&rsquo;ing
+      to <code>$APP_DIR</code> for the node server launch, and
+      ttyd inherited that directory. Fix: <code>cd</code> to
+      <code>$WIKI_ROOT</code> before launching ttyd, and launch
+      the node server via absolute path instead.
+    </p>
+  </section>
+
+  <section class="log-entry" id="tree-walker-index-only">
+    <h2>Entry 5 &mdash; Tree walker: directories with only index.html</h2>
+
+    <p>
+      The nav tree was missing all four workstream directories.
+      Root cause: the tree walker filtered out directories with
+      zero children, but a workstream directory whose only file is
+      <code>index.html</code> consumes that file as the
+      directory&rsquo;s title and skips it from the children list,
+      leaving an empty array. Fix: track whether a directory has
+      an <code>index.html</code> via a <code>hasIndex</code> flag,
+      and include directories that have one even if they have no
+      other children.
+    </p>
+  </section>
+
+  <section class="log-entry" id="sprite-services">
+    <h2>Entry 6 &mdash; Sprite services instead of raw PID management</h2>
+
+    <p>
+      The first version of the wiki CLI managed two background processes
+      (node server, ttyd) by hand &mdash; spawning, writing PIDs to
+      <code>_app/run/</code>, probing ports until listening. That works
+      locally but the wiki was unreachable from outside the Sprite VM:
+      the Sprite proxy at <code>https://&lt;sprite&gt;.sprites.app</code>
+      routes external traffic to a service registered with
+      <code>--http-port</code>, not to whatever happens to be listening
+      on a port. No service, no route.
+    </p>
+
+    <p>
+      Fix: register ttyd and the node server as separate Sprite services
+      with <code>sprite-env services create</code>. The wiki service
+      declares <code>--http-port 3000</code> (so the proxy routes there)
+      and <code>--needs ttyd</code> (so dependency ordering is enforced).
+      Two payoffs: external reachability, and auto-restart on crash
+      &mdash; the supervisor brings the process back without the CLI
+      having to track PIDs.
+    </p>
+
+    <p>
+      One gotcha: <code>--args</code> splits on commas. The ttyd font
+      family arg <code>fontFamily=Menlo,Monaco,Consolas,monospace</code>
+      got shredded into separate args; the start command became
+      &ldquo;<code>Monaco\ Consolas\ monospace zsh</code>&rdquo; and ttyd
+      tried to <code>execvp</code> a file named &ldquo;Monaco\&rdquo;.
+      Dropped the font family from the service args (it&rsquo;s
+      cosmetic) and added <code>fontSize=16</code> separately.
+    </p>
+
+    <p>
+      The wiki CLI (<code>up</code>/<code>down</code>/<code>status</code>)
+      now wraps <code>sprite-env services start/stop/list</code> instead
+      of doing the bookkeeping itself. Less surface area, fewer corners
+      that go wrong.
+    </p>
+  </section>
+
+  <section class="log-entry" id="image-bridge">
+    <h2>Entry 7 &mdash; Browser-to-VM image bridge</h2>
+
+    <p>
+      ttyd is a text terminal &mdash; it cannot receive image pastes.
+      But the wiki&rsquo;s primary mode is &ldquo;Claude Code running in
+      the terminal pane,&rdquo; and Claude Code reads images via file
+      paths. So the operator&rsquo;s real need is to get a screenshot
+      from the MacBook clipboard into the VM filesystem, with the path
+      on the clipboard for pasting into the terminal.
+    </p>
+
+    <p>
+      Solution: a drop/paste zone in the topbar. <code>Cmd+V</code> or
+      drag-drop sends the image to <code>POST /api/upload</code>, the
+      server writes it to <code>_uploads/screenshot-&lt;ts&gt;.png</code>,
+      returns the absolute path, and the frontend copies that path to
+      the OS clipboard via <code>navigator.clipboard.writeText</code>.
+      The operator pastes the path into Claude Code and asks it to look.
+    </p>
+
+    <p>
+      Placement matters: the drop zone lives in the topbar header, not
+      the content pane. Wiki pages are intended to be little
+      applications &mdash; they may have their own paste handlers, drop
+      targets, or interactive surfaces. Putting the bridge in topbar
+      chrome keeps the content pane free for pages to be themselves.
+    </p>
+  </section>
+
+  <section class="log-entry" id="self-restart">
+    <h2>Entry 8 &mdash; Server self-restart via process.exit</h2>
+
+    <p>
+      The terminal proxies through the node server. Restarting node
+      from the terminal&rsquo;s own Claude Code session kills the
+      proxy connection, stranding the operator with no terminal and
+      no easy way to recover. A topbar ⟳ button is needed so a
+      restart can be triggered from the wiki page (which survives the
+      restart) instead of the terminal (which doesn&rsquo;t).
+    </p>
+
+    <p>
+      First attempt: <code>POST /api/restart</code> handler spawns
+      <code>sprite-env services restart wiki</code> via
+      <code>execFile</code>. Failed with <code>open
+      /sys/fs/cgroup/containers/sprite/svc.wiki/cgroup.procs:
+      No such file or directory</code>. A service cannot restart
+      itself through <code>sprite-env</code> &mdash; the
+      supervisor&rsquo;s cgroup machinery doesn&rsquo;t expect the
+      target service to be the caller. The service hung in a
+      half-broken state (PID reported as running, port not listening)
+      until manually restarted.
+    </p>
+
+    <p>
+      Correct pattern: the handler returns 200, then calls
+      <code>process.exit(0)</code>. Sprite&rsquo;s supervisor detects
+      the exit and auto-restarts the service within ~2 seconds (see
+      <a href="#sprite-services">Entry 6</a>). The frontend polls
+      <code>/api/tree</code> until it gets 200, then reloads the
+      terminal iframe. The operator stays in one browser tab; they
+      need <code>claude --resume</code> in the new terminal session to
+      pick up where they left off.
+    </p>
+
+    <p>
+      General lesson: when a process needs to restart itself, exit
+      cleanly and let the supervisor handle it. Don&rsquo;t reach back
+      through the supervisor&rsquo;s control plane from inside the
+      supervised process.
+    </p>
+  </section>
+
+  <section class="log-entry" id="checkpoint-skill">
+    <h2>Entry 9 &mdash; /checkpoint skill: commit messages as nucleus input</h2>
+
+    <p>
+      Two persistence layers run in parallel: git (durable, version-
+      controlled) and Sprite checkpoints (full VM-state rollback). A
+      milestone usually wants both, so doing them one-at-a-time is
+      friction. The <code>/checkpoint</code> skill bundles them: survey
+      changes, draft a commit message, commit, then create a Sprite
+      checkpoint with the same subject line.
+    </p>
+
+    <p>
+      The interesting discipline isn&rsquo;t the bundling &mdash;
+      it&rsquo;s the commit-message bar. <a href="#adaptation">Entry 0</a>
+      establishes <code>/evening</code> reads git history to propose
+      nucleus updates. That makes the commit message the
+      nucleus&rsquo;s primary input: every commit subject + body should
+      capture the <em>decision and reasoning</em>, not just what files
+      were touched. A &ldquo;Fix bug&rdquo; commit costs the nucleus a
+      future entry it could have had.
+    </p>
+
+    <p>
+      The skill encodes the bar with positive and negative examples
+      inline (good: &ldquo;Register wiki as Sprite services instead of
+      raw PID management&rdquo; with the proxy-routing explanation; bad:
+      &ldquo;Update files&rdquo;). When a change bundles multiple
+      distinct decisions, the skill suggests splitting into separate
+      commits so each decision gets its own message.
+    </p>
+  </section>
+
+  </main>
+</body>
+</html>
