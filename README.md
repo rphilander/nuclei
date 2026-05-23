@@ -16,7 +16,8 @@ Entries are numbered and chronological. Internal cross-references use `<a href="
 
 ## Files
 
-- [`personal.html`](https://rphilander.github.io/nuclei/personal.html) — Personal LLM wiki ("AI Chief of Staff"), adapted from a work system. Workstreams, ingest sources, daily briefings, nucleus maintenance.
+- [`personal.html`](https://rphilander.github.io/nuclei/personal.html) — Personal LLM wiki ("AI Chief of Staff"), adapted from a work system. Workstreams, ingest sources, daily briefings, nucleus maintenance. **Active.**
+- [`work-snapshot.html`](https://rphilander.github.io/nuclei/work-snapshot.html) — Frozen snapshot of the work-wiki nucleus that `personal.html` inherits from. Curated to include only the entries whose patterns carried over; work-specific entries (Slack/Jira/Google Docs ingest, sensitivity register, etc.) are omitted. **Will not be updated** — the active version lives in a private system at work.
 
 More to come as additional systems get nuclei.
 
