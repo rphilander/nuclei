@@ -18,6 +18,34 @@ Most systems lose their reasoning over time. Decisions stay in the code; rationa
 
 Useful systems evolve. Each meaningful evolution is a candidate for an entry. The accumulation of entries, over time, is the system's *thinking* — distinct from its code and content.
 
+## The model — local system, local nucleus, remote nuclei
+
+A nucleus doesn't exist on its own. It lives in a triple:
+
+- **The local system** — a project with its own git repo (an LLM wiki, a language runtime, a data pipeline, etc.). Its code and content evolve over time, tracked by ordinary git commits.
+- **The local nucleus** — a single HTML file in *this* nuclei repo that documents the local system's design decisions. As the system evolves, meaningful decisions become entries.
+- **Remote nuclei** — every other nucleus in this repo. Other systems' decision logs, available to learn from or steal from.
+
+A sprite (or any environment that owns a local system) declares its identity via a `.nuclei.json` config at the local system's repo root:
+
+```json
+{
+  "system": "personal-llm-wiki",
+  "nucleus_file": "personal.html",
+  "local_repo": "/home/sprite",
+  "nuclei_repo": "/home/sprite/nuclei"
+}
+```
+
+Skills read this config to know which nucleus they own, where to find it, and which others count as remote.
+
+The shared skills in this repo operate on this triple:
+
+- **Local system → local nucleus.** `/nucleus-update` reads recent git activity in the local system, proposes nucleus-worthy entries, and places confirmed ones in the local nucleus.
+- **Remote nuclei → local nucleus.** `/nucleus-scan-for-steals` finds new entries in other nuclei, walks them as steal candidates, and can hand confirmed steals to `/nucleus-update` for incorporation with attribution.
+
+A per-sprite cursor file (`~/.config/nuclei-cursor.json`) tracks the read state — a commit SHA for the local system, and a list of seen entry ids per remote nucleus.
+
 ## What goes in an entry
 
 - **Design decisions** — choosing one approach over another, with reasoning.
@@ -107,10 +135,12 @@ You're encouraged to steal. The protocol:
 
 These are first-class slash commands. They can be invoked directly by the operator or as sub-invocations from system-specific orchestrators (e.g. a sprite's local `/morning` or `/evening`).
 
-- **`/nucleus-add-entry`** — given a drafted entry and a target nucleus file, validates the entry against this spec, assigns the next number, places it in the file, bumps `nucleus-updated`, commits and pushes. Never judges entry-worthiness — that's the caller's job. Never edits prose — places what it's given.
-- **`/nucleus-scan-for-steals`** — pulls latest from this repo, compares against a per-sprite cursor of last-seen state, returns a structured list of new entries in *other* nuclei (excluding the local sprite's own). Caller walks them with propose/confirm and may invoke `/nucleus-add-entry` to incorporate stolen entries.
+- **`/nucleus-update`** — reads the local system's recent git activity (since the cursor), evaluates each meaningful change against the entry-worthiness bar, walks the operator through propose/confirm, drafts entries in the spec's voice, places confirmed ones in the local nucleus, bumps metadata, commits and pushes the nuclei repo, then advances the cursor.
+- **`/nucleus-scan-for-steals`** — pulls latest from this repo, compares each remote nucleus against the per-sprite cursor, returns a structured list of new entries with propose/confirm dispositions (steal / skip / defer). For confirmed steals, hands off to `/nucleus-update` to incorporate with an attribution cross-reference to the source.
 
-Local skills like `/morning` and `/evening` are system-specific — they own the judgment calls about what to scan, what to surface, and what's nucleus-worthy. They invoke the shared skills above for nucleus-protocol operations.
+Both skills auto-discover the local system from a `.nuclei.json` config in the local system's repo root (see [The model](#the-model--local-system-local-nucleus-remote-nuclei) above).
+
+Local skills like `/morning` and `/evening` are system-specific — they own the system-specific intel sources (HN, RSS, Gmail for a wiki; different for other systems). They invoke the shared skills above when nucleus operations are needed.
 
 ## License
 
