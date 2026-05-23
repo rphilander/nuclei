@@ -1,0 +1,875 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="nucleus-system" content="work-llm-wiki-snapshot">
+  <meta name="nucleus-snapshot-date" content="2026-05-23">
+  <meta name="nucleus-frozen" content="true">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.conditional.min.css">
+  <title>Nucleus &mdash; work LLM wiki (snapshot)</title>
+</head>
+<body>
+  <main class="pico container" data-theme="light">
+  <h1>Nucleus &mdash; work LLM wiki (snapshot)</h1>
+  <p class="meta">
+    Author: Rodrigo<br>
+    Snapshot taken: <time>2026-05-23</time>
+  </p>
+
+  <article style="border-left: 4px solid #d97757; background: #fff7f3; padding: 12px 16px; margin: 16px 0;">
+    <strong>This is a frozen snapshot.</strong> It documents the
+    starting point that <a href="personal.html">personal.html</a>
+    adapts from. The active version of this nucleus lives in a
+    private system at work and will not be updated here &mdash; it is
+    not part of this ecosystem. Only the entries the personal nucleus
+    actually inherits patterns from are included; entries about
+    work-specific ingest sources (Slack, Jira, Google Docs), the
+    sensitivity register, and other work-only concerns have been
+    omitted. The one anonymization is replacing a friend&rsquo;s
+    first name with &ldquo;a friend and colleague&rdquo; in Entry 0.
+  </article>
+
+  <h2>Preface</h2>
+  <p>
+    The work LLM wiki is an &ldquo;AI Chief of Staff&rdquo; for an
+    engineering leader: a single web app with a navigation pane, a
+    content pane, and an embedded terminal running Claude Code. It
+    organizes daily intel, action items, and synthesis across
+    initiatives. The system is built from off-the-shelf parts &mdash;
+    Node+Express, vanilla JS, ttyd + xterm.js, Claude Code &mdash; and
+    its content lives as HTML files in a directory tree, with the LLM
+    as the steward who keeps the wiki maintained over time.
+  </p>
+
+  <p>
+    The entries below are AI-generated, written for AI consumption.
+    They&rsquo;re the captain&rsquo;s-log decisions and lessons that
+    the personal wiki inherits from. Internal cross-references like
+    &ldquo;<a href="#missing">Entry N</a>&rdquo; that point to omitted
+    entries will be broken links &mdash; that&rsquo;s expected for a
+    snapshot.
+  </p>
+
+  <hr>
+
+  <section class="log-entry" id="foundation">
+    <h2>Entry 0 &mdash; Foundation</h2>
+
+    <p>
+      Three threads landed close enough together to fuse into a
+      thing worth building.
+    </p>
+
+    <ol>
+      <li>
+        <strong>The LLM-wiki concept itself.</strong>
+        <a href="https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f">Karpathy&rsquo;s
+        gist</a> had crossed my feed weeks earlier but didn&rsquo;t
+        click until a friend and colleague started evangelizing it.
+        He showed me his working instance, which made the idea
+        concrete in a way the gist alone hadn&rsquo;t: an LLM as the
+        steward of a directory of notes, cross-referencing,
+        ingesting, refining over time. The core insight is that the
+        maintenance burden &mdash; the reason humans abandon wikis
+        &mdash; gets handed to the LLM, who doesn&rsquo;t mind.
+      </li>
+      <li>
+        <strong>HTML instead of Markdown for LLM-managed
+        content.</strong>
+        <a href="https://x.com/trq212/status/2052809885763747935">A post</a>
+        arguing that Claude Code generates substantially better
+        artifacts when the target medium is HTML rather than
+        Markdown. Karpathy&rsquo;s framing assumes Markdown; this
+        was the first evolution I could see making. HTML carries
+        semantics Markdown can&rsquo;t &mdash; classes,
+        <code>data-*</code> attributes, structured listings, inline
+        scripts &mdash; which downstream enables typed entities
+        (action items, sensitivity, monitored docs) without bolting
+        a database onto a notes app.
+      </li>
+      <li>
+        <strong>ttyd + xterm.js as accessible infrastructure.</strong>
+        a friend and colleague was running Claude Code in a terminal embedded
+        inside his Obsidian window via an Obsidian plugin. I
+        hadn&rsquo;t realized browser-embeddable terminals were
+        mature, widely-used technology &mdash; that ttyd serves a
+        real shell over a WebSocket and xterm.js renders it
+        competently in any iframe. This had been the gap for years:
+        I&rsquo;d wanted to mix terminal and web modalities in the
+        same surface and didn&rsquo;t know how to do it without
+        bespoke engineering.
+      </li>
+    </ol>
+
+    <p>
+      <strong>The synthesis.</strong> If I built a small bespoke
+      web app instead of using Obsidian + plugins, I could put
+      terminal and content in panes I controlled, store everything
+      as HTML so structured-data affordances came for free, and
+      have Claude Code edit both the content and the app itself
+      from inside the app. That last part &mdash; the application
+      building the application &mdash; was the move that made the
+      project feel worth the effort, not just a marginal
+      customization of someone else&rsquo;s tool.
+    </p>
+
+    <p>
+      All three threads rested on accessible, off-the-shelf
+      technology: HTML, ttyd and xterm.js, Claude Code&rsquo;s
+      filesystem tools. The work was assembly, not invention. That
+      mattered because it meant the project was actually buildable
+      in a few sittings, not a multi-month engineering investment.
+    </p>
+
+    <p>
+      The deeper question was what to organize the system around.
+      Karpathy frames the LLM wiki as knowledge-shaped &mdash;
+      query-driven retrieval over compounding notes. I wasn&rsquo;t
+      looking for a librarian. I was looking for an instrument for
+      running my function as an engineering leader: daily intel,
+      synthesis across initiatives, action tracking, prep for
+      upcoming conversations. Same substrate (directory + LLM),
+      different organizing principle. The &ldquo;AI Chief of
+      Staff&rdquo; framing the preface mentions is what made
+      everything that followed feel natural rather than forced.
+    </p>
+  </section>
+
+  <section class="log-entry" id="minimal-viewer-and-cli">
+    <h2>Entry 1 &mdash; Minimal viewer, terminal, and CLI shape</h2>
+
+    <p>
+      The first phase. We needed a viewer for the content, a place
+      for the agent to run, and a way to start and stop both. All
+      three had to exist before any subsequent iteration would make
+      sense.
+    </p>
+
+    <p>What we built:</p>
+
+    <ul>
+      <li>
+        A Node + Express server on <code>127.0.0.1:3000</code> with
+        two endpoints &mdash; <code>/api/tree</code> (walks the
+        filesystem to produce a JSON nav tree, reading the first
+        1 KB of each HTML file to pull its
+        <code>&lt;title&gt;</code> for the nav label) and
+        <code>/api/page</code> (HTML pass-through, Markdown via
+        <code>markdown-it</code>, CSV/TSV via <code>papaparse</code>,
+        image bytes for image extensions, placeholder otherwise).
+      </li>
+      <li>
+        A separate ttyd server on <code>127.0.0.1:7681</code> serving
+        a real shell over a WebSocket. xterm.js renders it inside an
+        <code>&lt;iframe&gt;</code> in the frontend, so the viewer
+        and the terminal live in the same browser tab from day one.
+      </li>
+      <li>
+        A vanilla-JS frontend in <code>_app/public/</code>: one
+        <code>index.html</code> with two stacked panes (content top,
+        terminal bottom, split by Split.js), one <code>app.js</code>,
+        one <code>styles.css</code>. No build step.
+      </li>
+      <li>
+        A WebSocket at <code>/ws</code> so the CLI can broadcast
+        &ldquo;open this path&rdquo; messages to any open browser
+        tab.
+      </li>
+      <li>
+        A <code>wiki</code> CLI at <code>_app/bin/wiki</code>,
+        symlinked into <code>PATH</code>: <code>up</code>,
+        <code>down</code>, <code>status</code>, <code>open</code>,
+        <code>tree</code>. <code>up</code> spawns both the node
+        server and ttyd detached, writes PIDs and logs under
+        <code>_app/run/</code>, probes both ports until they&rsquo;re
+        listening, and opens the browser; it fails fast if either
+        port is already in use.
+      </li>
+    </ul>
+
+    <p>
+      Why this shape: filesystem-as-substrate means git is the
+      durable artifact without any extra plumbing &mdash; no
+      database to lose, no schema to migrate, every tool already
+      knows how to deal with files. Vanilla JS with no build means
+      the app can be edited and reloaded without a rebuild loop,
+      which turns out to be load-bearing later when the agent
+      starts modifying the app from inside it. Local-only on
+      <code>127.0.0.1</code> means no auth and no cloud surface;
+      the whole system runs on a closed laptop. Terminal
+      infrastructure was off-the-shelf and battle-tested, so we
+      didn&rsquo;t have to invent a shell-in-a-browser.
+    </p>
+
+    <p>
+      A few small decisions in here ended up mattering
+      disproportionately. A leading underscore on a top-level name
+      marks it as infrastructure (the app itself in
+      <code>_app/</code>, runtime data, internal memory) and hides
+      it from the content nav &mdash; so the nav shows what the
+      operator authored, not everything in the repo. Every path
+      arriving over the network gets resolved and verified to stay
+      inside the wiki root before any file read; cheap on day one,
+      painful to retrofit later. And the CLI is the only sanctioned
+      way to manage lifecycle, so the operator never has to think
+      about ports or PIDs &mdash; <code>wiki up</code>,
+      <code>wiki status</code>, done.
+    </p>
+  </section>
+
+  <section class="log-entry" id="workstream-hierarchy">
+    <h2>Entry 4 &mdash; Workstream hierarchy and workstream-specific channels</h2>
+
+    <p>
+      The workstream pages introduced in
+      <a href="#ingest-pipeline-and-workstream-concept">Entry 2</a>
+      were flat &mdash; one file per concern at the workstream
+      root. That stopped scaling fast. Real workstreams have
+      sub-workstreams; sub-workstreams have initiatives. Forcing
+      them flat meant either too few pages (each one too dense to
+      navigate) or too many (the root became a wall of one-line
+      summaries).
+    </p>
+
+    <p>
+      The shape that worked: nested directories. A workstream is a
+      directory with an <code>index.html</code>; a sub-workstream
+      is a child directory with its own <code>index.html</code>;
+      an initiative is a single file inside the sub-workstream, or
+      a further-nested directory if it has its own internal
+      structure. The viewer folds <code>index.html</code> into its
+      parent directory in the nav &mdash; the directory takes the
+      index page&rsquo;s title and the index file doesn&rsquo;t
+      appear as a separate leaf.
+    </p>
+
+    <p>
+      Each workstream page can declare its own Slack channel
+      subscriptions via a
+      <code>&lt;ul class="channels"&gt;</code> block listing the
+      channels relevant to that workstream specifically (a backend
+      modernization page subscribes to a backend-modernization
+      channel; the cancel-flow initiative subscribes to its
+      project-specific channel). The daily flow aggregates these
+      alongside the cross-cutting set from
+      <code>slack/ongoing.html</code> and dedupes on channel
+      name. When the same channel appears on multiple pages,
+      deepest path wins &mdash; the most specific workstream gets
+      the briefing summary.
+    </p>
+
+    <p>
+      The workstream-specific channels are where most of the
+      actionable signal actually lives. Cross-cutting channels
+      are important context; workstream-specific channels are
+      where decisions get made and progress gets reported.
+      Putting the subscription declaration on the workstream
+      page itself means the watch-list isn&rsquo;t a separate
+      config that drifts out of sync &mdash; it&rsquo;s right
+      where the work is described.
+    </p>
+  </section>
+
+  <section class="log-entry" id="viewer-feel-finished">
+    <h2>Entry 8 &mdash; Viewer feel-finished pass</h2>
+
+    <p>
+      By the time the wiki had a few days of content, the
+      viewer&rsquo;s rough edges were obvious. A cluster of small
+      moves tightened it up.
+    </p>
+
+    <p>
+      <strong>External links open in a new tab.</strong> The wiki
+      tab is the operator&rsquo;s focus surface; a docs.google.com
+      or github.com link in a meeting summary shouldn&rsquo;t
+      replace it. The content-pane click handler routes any
+      <code>:</code>- or <code>//</code>-prefixed href to
+      <code>window.open</code>.
+    </p>
+
+    <p>
+      <strong>Tree nav shows page titles, not filenames.</strong>
+      The tree-building code on the server reads the first 1 KB of
+      each HTML file to extract <code>&lt;title&gt;</code>, falling
+      back to the filename if absent. A directory with an
+      <code>index.html</code> takes the index&rsquo;s title as its
+      own label, and the index file doesn&rsquo;t appear separately
+      in the tree. The nav reads like a topic hierarchy, not a
+      file listing.
+    </p>
+
+    <p>
+      <strong>Canonical directory paths end with <code>/</code>.</strong>
+      Without this, a relative href from
+      <code>workstreams/modernization/index.html</code> like
+      <code>&lt;a href="web/"&gt;</code> resolves against
+      <code>workstreams/</code> (the parent) instead of
+      <code>workstreams/modernization/</code> (the directory the
+      index file conceptually <em>is</em>). Normalizing dir paths
+      to trailing <code>/</code> in the frontend&rsquo;s
+      <code>history.pushState</code> calls fixes it. Small, but
+      a constant source of broken links until handled.
+    </p>
+
+    <p>
+      <strong>Three pane-mode buttons.</strong> A top-bar group
+      lets the operator snap to content-only, both panes, or
+      terminal-only. The hidden pane stays in the DOM so the
+      embedded terminal&rsquo;s WebSocket stays alive &mdash; the
+      agent session persists across mode switches.
+    </p>
+  </section>
+
+  <section class="log-entry" id="sonnet-for-sub-agents">
+    <h2>Entry 11 &mdash; Sonnet for sub-agents</h2>
+
+    <p>
+      A model-choice calibration that lands once a few
+      parallel-sub-agent pipelines exist: the per-meeting
+      sub-agents from
+      <a href="#synthesize-from-raw-transcripts">Entry 10</a>, the
+      channel scanners from <a href="#daily-flow">Entry 3</a>, ad
+      hoc research deep-dives. They all do structured
+      summarization &mdash; read a bunch of input, return a
+      well-shaped output. Sonnet is roughly equivalent quality to
+      Opus on this kind of task at roughly 5&times; lower cost.
+    </p>
+
+    <p>
+      The discipline: reach for Sonnet by default for sub-agents;
+      pin Opus only when the task genuinely needs deeper reasoning
+      (the main orchestrator, planning-heavy work, multi-step
+      synthesis across heterogeneous inputs). Pin the model choice
+      explicitly in the sub-agent&rsquo;s prompt or Agent-tool
+      call &mdash; don&rsquo;t leave it to inheritance, because
+      the inherited model is whatever the orchestrator is, which
+      is usually Opus.
+    </p>
+  </section>
+
+  <section class="log-entry" id="action-items">
+    <h2>Entry 12 &mdash; Action items as first-class typed entities</h2>
+
+    <p>
+      The biggest single design move. Up to this point the system
+      captured raw intel and synthesized it into workstream
+      narratives, but actions surfaced from meetings and channels
+      lived only as bullets inside their source documents.
+      Aggregating &ldquo;what do I need to do&rdquo; required
+      re-reading. The move: lift action items to a first-class
+      typed entity that can live anywhere in the tree, with a
+      stable markup convention that an aggregator endpoint can
+      walk and return as JSON.
+    </p>
+
+    <p>
+      The markup. An <code>&lt;li&gt;</code> with class
+      <code>action-item</code> inside a
+      <code>&lt;ul class="action-items"&gt;</code>. The item
+      carries <code>data-id</code> (stable kebab-slug, ideally
+      scoped by initiative), <code>data-status</code> (one of
+      <code>open</code>, <code>scheduled</code>,
+      <code>blocked</code>, <code>done</code>,
+      <code>dropped</code>), <code>data-owner</code>, and
+      optionally <code>data-due</code>
+      (<code>YYYY-MM-DD</code>). The action text is the
+      <code>&lt;li&gt;</code>&rsquo;s body; an optional child
+      <code>&lt;span class="note"&gt;</code> holds short context
+      (blocker, dependency, link). The CSS keys off
+      <code>data-status</code> &mdash; the same rules apply on
+      initiative pages and on the aggregator view, so visual
+      consistency is automatic.
+    </p>
+
+    <p>Concretely:</p>
+<pre><code>&lt;ul class="action-items"&gt;
+  &lt;li class="action-item"
+      data-id="kebab-slug-scoped-by-initiative"
+      data-status="open"
+      data-owner="rod"
+      data-due="2026-05-25"&gt;
+    Imperative action text.
+    &lt;span class="note"&gt;optional context, blocker, or link&lt;/span&gt;
+  &lt;/li&gt;
+&lt;/ul&gt;</code></pre>
+
+    <p>
+      The aggregator. A small parser (regex over the file tree,
+      tolerant of attribute order) finds every
+      <code>action-item</code> across the wiki and exposes them
+      as JSON at <code>/api/action-items</code>. A dynamic viewer
+      at <code>action-items.html</code> consumes the endpoint
+      and renders the combined list with status-coded blocks.
+      Orphan items &mdash; ones without a clear initiative home
+      &mdash; live in <code>inbox.html</code> at the root. The
+      parser strips <code>&lt;script&gt;</code> and
+      <code>&lt;style&gt;</code> blocks before scanning, or
+      string literals like <code>'class="action-item"'</code>
+      inside inline JS (the aggregator viewer itself, for
+      instance) get mis-parsed as real items.
+    </p>
+
+    <p>
+      Why this is consequential. Items keep living next to the
+      work they belong to (the right initiative page;
+      <code>inbox.html</code> for orphans), but they can be
+      queried as a single set. The operator has both views at
+      once: in-context on the initiative page, plus a
+      cross-cutting &ldquo;everything that needs me&rdquo;
+      surface. This is what made the system shift from instrument
+      for synthesis to instrument for action &mdash; the
+      difference between knowing where things stand and knowing
+      what to do next. It&rsquo;s also the second compounding
+      payoff of the HTML-over-Markdown choice
+      (<a href="#foundation">Entry 0</a>): typed entities
+      embedded in narrative text, walkable by a simple parser,
+      no separate database.
+    </p>
+
+    <p>Two disciplines that emerged with the markup:</p>
+
+    <ul>
+      <li>
+        <strong>Bias toward fewer items.</strong> Only track
+        things that directly affect the operator &mdash; their
+        own actions, or things they need others to do so they
+        can act. It&rsquo;s easy for ingest to surface every
+        &ldquo;next steps&rdquo; bullet from every meeting as a
+        candidate; if most candidates land as real items the
+        list becomes noise. Treat ingestion-time proposals as
+        candidates to <em>reject</em> by default.
+      </li>
+      <li>
+        <strong>Meeting &ldquo;Next steps&rdquo; stay as plain
+        bullets.</strong> The Next-steps section of a meeting
+        summary uses ordinary
+        <code>&lt;ul&gt;&lt;li&gt;</code>, not
+        <code>class="action-item"</code> markup. Keeps raw
+        transcript noise out of the aggregator. The proposal
+        layer (<a href="#proposal-pattern">Entry 13</a>) is what
+        lifts the few worth keeping into proper action items on
+        the right initiative page.
+      </li>
+    </ul>
+  </section>
+
+  <section class="log-entry" id="proposal-pattern">
+    <h2>Entry 13 &mdash; The proposal pattern</h2>
+
+    <p>
+      Introducing action items
+      (<a href="#action-items">Entry 12</a>) raised a question:
+      when <code>/morning</code> ingests yesterday&rsquo;s
+      meetings and notices new &ldquo;next steps&rdquo; or
+      candidates for state changes, should it write them into
+      the wiki directly? The answer is no.
+      <code>/morning</code> never auto-edits initiative pages.
+      It produces proposals only.
+    </p>
+
+    <p>
+      The pattern: each briefing&rsquo;s
+      &ldquo;Action items &mdash; proposed&rdquo; section has
+      four subsections &mdash; new from yesterday&rsquo;s
+      meetings, state-change candidates (items that look done /
+      unblocked based on intel since the last run), stale (open
+      or scheduled with due dates in the past), and coming due
+      soon. After the briefing opens, the orchestrating agent
+      walks the operator through the proposals in the terminal
+      pane conversationally &mdash; accept, edit, or reject each
+      &mdash; and edits the appropriate initiative page or
+      <code>inbox.html</code> on confirm.
+    </p>
+
+    <p>
+      Why proposals rather than auto-writes. The action-item
+      list is a load-bearing source of &ldquo;what needs
+      me.&rdquo; If the system auto-writes, the operator stops
+      trusting it &mdash; one wrong item from a misread
+      transcript and the whole surface becomes suspect.
+      Proposals keep the operator in the loop on the decision
+      and the system in the loop on the bookkeeping. Costs about
+      thirty seconds per item; the trust is worth more than
+      that.
+    </p>
+
+    <p>
+      The same proposal pattern extends to sensitivity
+      (<a href="#sensitivity-register">Entry 14</a>): when
+      ingest encounters a passage that <em>might</em> be
+      sensitive but doesn&rsquo;t match an existing register
+      entry, it surfaces a candidates section rather than
+      auto-marking or auto-extending the register. The discipline
+      generalizes &mdash; for anything the system might get
+      wrong in a way the operator would have to undo, propose
+      rather than apply.
+    </p>
+  </section>
+
+  <section class="log-entry" id="xterm-canvas-renderer">
+    <h2>Entry 16 &mdash; xterm.js: pin the canvas renderer</h2>
+
+    <p>
+      A bug from the terminal pane that took longer to diagnose
+      than to fix. Several times a day, letters in the embedded
+      terminal would render with the wrong glyphs &mdash; an
+      <code>m</code> drawn as an <code>x</code>, an
+      <code>h</code> as a <code>k</code>. Source text was
+      correct (visible by selecting and pasting); only the
+      rendering was wrong. A hard-reload temporarily fixed it;
+      corruption returned within an hour. Root cause: the
+      default WebGL renderer in xterm.js maintains a glyph atlas
+      in a GPU texture, and the atlas gets corrupted over long
+      sessions in certain font / OS combinations.
+    </p>
+
+    <p>
+      The fix: pin xterm.js to its canvas renderer instead of
+      WebGL, and pin an explicit monospace font stack. Both set
+      via ttyd&rsquo;s <code>-t</code> command-line options
+      (<code>-t rendererType=canvas</code> and
+      <code>-t fontFamily="Menlo, Monaco, Consolas, monospace"</code>).
+      No code change to the wiki. Painless and durable; the
+      corruption hasn&rsquo;t returned since.
+    </p>
+
+    <p>
+      The lesson: when a third-party browser-embedded component
+      has multiple rendering backends, the non-default one is
+      sometimes the right pick for a long-lived session. WebGL
+      is a sensible default for general usage; for &ldquo;this
+      terminal stays open all day,&rdquo; canvas is the safer
+      choice.
+    </p>
+  </section>
+
+  <section class="log-entry" id="tmux-experiment">
+    <h2>Entry 17 &mdash; tmux for shell persistence: tried and reverted</h2>
+
+    <p>
+      An experiment worth recording because it failed. The
+      embedded terminal runs <code>ttyd</code> wrapping a shell;
+      every time the WebSocket disconnects (page reload,
+      network blip, server restart) the shell session ends. For
+      most uses this is fine, but a Claude Code conversation in
+      the terminal pane is more painful to lose. The natural
+      move: wrap ttyd&rsquo;s shell in
+      <code>tmux new-session -A</code> so sessions survive
+      disconnects.
+    </p>
+
+    <p>
+      It didn&rsquo;t work out. Three concrete frictions:
+      browser-native click-drag text selection broke (tmux
+      mouse mode interfered); TUI redraw produced visible
+      artifacts when split or resized; the configuration
+      overhead (mouse mode tuning, set-clipboard wiring) added
+      more operational surface than the session-persistence
+      saved. Reverted to a plain <code>zsh</code> launch.
+    </p>
+
+    <p>
+      Why the cost-benefit didn&rsquo;t justify it: Claude Code
+      restart-and-resume is fast. Re-entering a session takes
+      seconds; the agent reads the conversation history and is
+      immediately back in context. The
+      &ldquo;session persistence&rdquo; you thought you needed
+      is mostly persistence of <em>shell state</em> (cwd, env
+      vars, exported credentials), which is minor for this use
+      case. Don&rsquo;t reach for tmux unless the friction it
+      introduces is genuinely smaller than the cost of restart.
+    </p>
+  </section>
+
+  <section class="log-entry" id="same-origin-terminal-hotkeys-focus">
+    <h2>Entry 18 &mdash; Same-origin terminal, pane hotkeys, focus that follows the visible pane</h2>
+
+    <p>
+      The pane-mode buttons from
+      <a href="#viewer-feel-finished">Entry 8</a> covered the
+      visibility cases, but clicking a button to snap between
+      content-only / split / terminal-only felt like enough
+      friction that the operator drifted into not snapping at
+      all. The fix should have been simple: a hotkey for
+      &ldquo;toggle sidebar&rdquo; and another for &ldquo;cycle
+      pane mode.&rdquo; It turned into a multi-move iteration
+      because the obvious approach had hidden constraints.
+    </p>
+
+    <p>
+      First constraint: the embedded terminal is in an
+      <code>&lt;iframe&gt;</code> pointed at ttyd (a different
+      port). When focus is inside the iframe (which it almost
+      always is, because the operator is typing to the agent),
+      the parent page&rsquo;s key listeners never fire. The
+      iframe is cross-origin (different port = different
+      origin), so the parent can&rsquo;t attach listeners to
+      its <code>contentDocument</code> either. The hotkeys
+      silently fail in the exact case they&rsquo;re most
+      needed.
+    </p>
+
+    <p>
+      Fix: make the iframe same-origin by reverse-proxying ttyd
+      through the wiki server. <code>GET /term/*</code> and its
+      WebSocket upgrade get forwarded to ttyd on the loopback
+      port; ttyd is launched with <code>-b /term</code> so the
+      URLs in its served HTML carry the prefix the wiki
+      expects. From the browser&rsquo;s perspective the
+      terminal is served by the wiki itself; the iframe is
+      same-origin and the parent can manipulate its DOM.
+    </p>
+
+    <p>
+      Implementing the proxy surfaced a second issue. The
+      wiki&rsquo;s own WebSocket (<code>/ws</code>, the
+      broadcast channel from
+      <a href="#minimal-viewer-and-cli">Entry 1</a>) used the
+      <code>ws</code> library&rsquo;s default
+      <code>{server, path}</code> mode, which registers an
+      upgrade listener that <em>destroys</em> sockets whose
+      path doesn&rsquo;t match. With the ttyd proxy in place,
+      every <code>/term/*</code> WebSocket upgrade got
+      destroyed by the <code>/ws</code> listener before the
+      proxy handler could see it. Fix: switch the
+      wiki&rsquo;s WebSocket to <code>noServer: true</code>
+      mode and write the upgrade listener by hand, with a path
+      check that <em>returns</em> (rather than destroying the
+      socket) when the path isn&rsquo;t the wiki&rsquo;s own.
+      Lets other handlers own their paths.
+    </p>
+
+    <p>
+      With same-origin in place, the parent attaches a
+      capture-phase <code>keydown</code> listener inside the
+      iframe&rsquo;s <code>contentDocument</code>. Capture
+      phase fires before xterm.js sees the keys; the
+      parent&rsquo;s hotkeys intercept first, the rest pass
+      through. <code>Cmd/Ctrl + \</code> toggles the sidebar;
+      <code>Cmd/Ctrl + Shift + \</code> cycles the pane mode.
+    </p>
+
+    <p>
+      Third issue: focus. After cycling pane mode, focus should
+      land in whatever pane just became active &mdash; and on
+      transitions <em>into</em> split mode, in the pane that
+      wasn&rsquo;t previously visible (so &ldquo;show me the
+      terminal&rdquo; doesn&rsquo;t still require a mouse click
+      to actually type). For content focus, focusing the
+      content element works. For terminal focus, focusing the
+      iframe&rsquo;s <code>contentWindow</code> isn&rsquo;t
+      enough &mdash; xterm.js routes input through a hidden
+      helper textarea (<code>.xterm-helper-textarea</code>), so
+      focus has to land there specifically. Query for that
+      element and call <code>.focus()</code> on it.
+    </p>
+
+    <p>
+      The operator now drives the layout from the keyboard
+      regardless of which pane has focus, and the right pane
+      gets focus after every transition. The
+      &ldquo;should have been simple&rdquo; iteration ended up
+      the right shape on the third or fourth try; each layer
+      of the problem was discoverable only after the previous
+      one was fixed. Three lessons emerge inside this iteration
+      rather than as standalone entries: same-origin is
+      required to manipulate an iframe&rsquo;s document;
+      <code>noServer: true</code> is required when coexisting
+      with other upgrade handlers; xterm.js routes input
+      through a hidden textarea, so focus the textarea not the
+      iframe.
+    </p>
+  </section>
+
+  <section class="log-entry" id="the-nucleus-itself">
+    <h2>Entry 19 &mdash; The nucleus itself</h2>
+
+    <p>
+      The strange entry: this one describes the very document it
+      lives in. After eighteen entries of iterations on the wiki,
+      we stepped back and asked what kind of artifact this writeup
+      actually was. The answer reshaped the document &mdash; and
+      became the format the wiki is now exploring.
+    </p>
+
+    <p>
+      Earlier attempts were prose-shaped (&ldquo;here&rsquo;s how
+      my wiki works&rdquo;) or build-spec-shaped (&ldquo;here&rsquo;s
+      enough that an LLM could rebuild it&rdquo;). Both undersold
+      what was interesting. The economics shift from
+      <a href="#foundation">Entry 0</a> &mdash; code now trivially
+      reproducible from a clear description &mdash; means the
+      canonical artifact of a software system can stop being the
+      source code. What&rsquo;s worth preserving as the first-class
+      thing is the decisions and the reasoning behind them, in a
+      form a coding agent can rebuild from and a human can lift
+      from. That artifact needed a name.
+    </p>
+
+    <p>
+      We landed on <em>nucleus</em>: a single readable document
+      holding the central state of a software system, distinct
+      from the running code. The format is a captain&rsquo;s log
+      &mdash; one entry per coherent iteration, in roughly
+      chronological order, each capturing what changed and why.
+      Replay-shaped, not reference-shaped: you walk through how
+      the system came together, you don&rsquo;t look things up.
+      Conventions and lessons live inline next to the iteration
+      that produced them rather than in separate sections.
+      Cross-references thread compounding payoffs and adjustments
+      across entries.
+    </p>
+
+    <p>
+      Cross-references work through ordinary in-page anchor links
+      (<code>&lt;a href="#entry-id"&gt;</code>). That introduced a
+      small viewer wrinkle worth noting: the wiki encodes the
+      current page path as the URL fragment
+      (<code>#nucleus.html</code>, etc.), so letting the browser
+      natively handle in-page anchors would clobber the path
+      encoding and 404 on the next reload. Fix: the viewer&rsquo;s
+      click handler intercepts <code>#</code>-prefixed hrefs and
+      calls <code>scrollIntoView</code> programmatically, leaving
+      the URL fragment alone. Small, easy to miss until
+      cross-references actually start mattering.
+    </p>
+
+    <p>
+      Maintenance is the other half. A nucleus has to stay current
+      as the system evolves, or it rots into stale description.
+      That&rsquo;s what <code>/evening</code> is for: scan what
+      changed in the wiki since the last run, identify what
+      crosses the threshold of nucleus-worthy, propose new entries
+      (or amendments to existing ones), and apply on confirm. Same
+      proposal discipline as
+      <a href="#proposal-pattern">Entry 13</a> &mdash; surface
+      candidates conversationally; never auto-write. Where
+      <code>/morning</code> keeps the wiki current with the
+      world, <code>/evening</code> keeps the nucleus current with
+      the wiki. The expected common case is &ldquo;nothing
+      nucleus-worthy today&rdquo; &mdash; the nucleus
+      shouldn&rsquo;t grow every day.
+    </p>
+
+    <p>
+      The bet behind inventing the format at all is portability.
+      Any software system whose code is now reproducible via
+      agentic engineering could have a nucleus &mdash; one
+      document holding the decisions and the journey, with a
+      reflective routine to keep it current. The wiki is the
+      first instance we have to point at; the format generalizes,
+      or it doesn&rsquo;t. Future runs of <code>/evening</code>
+      will tell us.
+    </p>
+  </section>
+
+  <section class="log-entry" id="iframe-globals-patching">
+    <h2>Entry 22 &mdash; Patching iframe internals as a general technique</h2>
+
+    <p>
+      <a href="#same-origin-terminal-hotkeys-focus">Entry 18</a>
+      established that once the terminal iframe is same-origin
+      (via the reverse proxy at <code>/term/*</code>), the parent
+      can attach listeners inside the iframe&rsquo;s
+      <code>contentDocument</code>. The first use was
+      capture-phase keydown for pane hotkeys. It turns out the
+      same property unlocks a more general technique: patch
+      third-party-library globals inside the iframe to bend their
+      behavior without forking the library.
+    </p>
+
+    <p>
+      Concrete case: xterm.js&rsquo;s web-links addon wraps every
+      Cmd-clicked URL in a <code>confirm()</code> dialog
+      (&ldquo;Do you want to navigate to X? WARNING: This link
+      could potentially be dangerous&rdquo;) and then calls
+      <code>window.open()</code> &mdash; both produce friction
+      (the dialog every click, the popup blocker tripping because
+      the call originates inside the iframe and can lose
+      gesture-context inheritance). The fix lives entirely in the
+      parent&rsquo;s iframe-load handler:
+    </p>
+
+<pre><code>const win = termIframe.contentWindow;
+const origConfirm = win.confirm.bind(win);
+win.confirm = (msg) =&gt; {
+  if (typeof msg === 'string' &amp;&amp; msg.includes('Do you want to navigate to')) {
+    return true;  // silently approve link-navigation prompts only
+  }
+  return origConfirm(msg);
+};
+win.open = (url, target, features) =&gt;
+  window.open(url, target || '_blank', features);  // delegate to parent</code></pre>
+
+    <p>
+      One subtle constraint that&rsquo;s easy to miss:
+      xterm.js&rsquo;s sequence is
+      <code>e = window.open(); e.opener = null; e.location.href
+      = uri</code> &mdash; open a blank tab, detach opener, then
+      set the URL. The wrapper must return a real
+      <code>Window</code> reference and must not pass
+      <code>noopener</code> in the features string (noopener
+      makes <code>window.open</code> return <code>null</code> and
+      the new tab stays on about:blank). The wrong move was
+      caught on first try; fixed by dropping the noopener.
+    </p>
+
+    <p>
+      The general pattern: any time an embedded same-origin
+      library calls a global the parent can reach, the parent can
+      patch it. Useful for browser-side libraries whose authors
+      weren&rsquo;t thinking about your specific embedding
+      context. Sister technique to capture-phase event
+      interception from
+      <a href="#same-origin-terminal-hotkeys-focus">Entry 18</a>
+      &mdash; both compound the value of having paid the
+      same-origin cost once.
+    </p>
+  </section>
+
+  <section class="log-entry" id="reverse-cycle-hotkey">
+    <h2>Entry 23 &mdash; Reverse-cycle hotkey for pane modes</h2>
+
+    <p>
+      Small affordance, worth stealing more than implementing
+      from scratch. The pane-mode cycle from
+      <a href="#same-origin-terminal-hotkeys-focus">Entry 18</a>
+      goes content-only &rarr; terminal-only &rarr; split, with
+      focus on every transition landing in whichever pane just
+      became visible. That rule is the right default &mdash; but
+      when entering split, &ldquo;the pane that just became
+      visible&rdquo; depends on where you came from, so the
+      forward cycle always lands in split with focus on
+      <em>content</em> (terminal was already visible; content is
+      the pane that just appeared).
+    </p>
+
+    <p>
+      Sometimes you want to land in split with focus on the
+      <em>terminal</em> instead &mdash; you&rsquo;re reading
+      something in the content pane and want to expand to drive
+      the agent without losing your place. A complementary
+      reverse-cycle hotkey gets this for free: bind a second
+      combo to step the cycle backward, and the focus-follows-pane
+      rule does the rest automatically. Approaching split from
+      content-only, the terminal is the newly-visible pane and
+      gets focus.
+    </p>
+
+    <p>
+      The lesson beyond the hotkey itself: focus-follows-pane is
+      already directional. Reversing the cycle reverses which
+      pane gets focus on transitions into split, without any new
+      focus logic. The implementation is a few lines &mdash; a
+      second function that steps the cycle index backward, plus
+      a modifier check in the keydown handler. Modifier choice
+      matters less than the conceptual pairing (forward / reverse
+      share a key, vary by modifier so the gesture stays in your
+      hand without re-anchoring).
+    </p>
+  </section>
+
+  </main>
+</body>
+</html>

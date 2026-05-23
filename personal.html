@@ -19,8 +19,9 @@
   <p>
     This document captures the decisions and reasoning behind
     my personal LLM wiki &mdash; adapted from the work version
-    I built at Scribd (documented in <code>nucleus.html</code>,
-    kept here as reference). The system is the same architecture
+    I built at Scribd (a frozen snapshot of the relevant work entries
+    is in <a href="work-snapshot.html">work-snapshot.html</a>).
+    The system is the same architecture
     (Node+Express, vanilla JS, ttyd, filesystem-as-database) but
     organized around personal workstreams rather than an
     engineering leader&rsquo;s function. The primary audience is
@@ -43,20 +44,29 @@
     <ul>
       <li>Node+Express server on <code>127.0.0.1:3000</code> with
           <code>/api/tree</code>, <code>/api/page</code>,
-          <code>/api/action-items</code> endpoints.</li>
+          <code>/api/action-items</code> endpoints. <span class="note">(work
+          <a href="work-snapshot.html#minimal-viewer-and-cli">Entry 1</a>)</span></li>
       <li>Vanilla JS frontend with three-pane layout (sidebar,
-          content, terminal). No build step.</li>
+          content, terminal). No build step. <span class="note">(work
+          <a href="work-snapshot.html#minimal-viewer-and-cli">Entry 1</a>,
+          <a href="work-snapshot.html#viewer-feel-finished">Entry 8</a>)</span></li>
       <li>ttyd reverse-proxied at <code>/term/*</code> for
-          same-origin iframe access.</li>
-      <li><code>wiki</code> CLI for lifecycle management.</li>
+          same-origin iframe access. <span class="note">(work
+          <a href="work-snapshot.html#same-origin-terminal-hotkeys-focus">Entry 18</a>)</span></li>
+      <li><code>wiki</code> CLI for lifecycle management. <span class="note">(work
+          <a href="work-snapshot.html#minimal-viewer-and-cli">Entry 1</a>)</span></li>
       <li>Action items as first-class typed entities with
           <code>data-status</code>, <code>data-owner</code>,
-          <code>data-due</code> attributes.</li>
+          <code>data-due</code> attributes. <span class="note">(work
+          <a href="work-snapshot.html#action-items">Entry 12</a>)</span></li>
       <li>Declarative source subscriptions on workstream pages
-          via <code>&lt;ul class="channels"&gt;</code>.</li>
+          via <code>&lt;ul class="channels"&gt;</code>. <span class="note">(work
+          <a href="work-snapshot.html#workstream-hierarchy">Entry 4</a>)</span></li>
       <li>Proposal pattern &mdash; system proposes, human confirms,
-          never auto-writes.</li>
-      <li>The nucleus format itself.</li>
+          never auto-writes. <span class="note">(work
+          <a href="work-snapshot.html#proposal-pattern">Entry 13</a>)</span></li>
+      <li>The nucleus format itself. <span class="note">(work
+          <a href="work-snapshot.html#the-nucleus-itself">Entry 19</a>)</span></li>
     </ul>
 
     <p><strong>What was dropped:</strong></p>
