@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="nucleus-system" content="personal-llm-wiki">
-  <meta name="nucleus-updated" content="2026-05-22">
+  <meta name="nucleus-updated" content="2026-05-23">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.conditional.min.css">
   <title>Nucleus &mdash; personal LLM wiki</title>
 </head>
@@ -12,7 +12,7 @@
   <h1>Nucleus</h1>
   <p class="meta">
     Author: Rodrigo<br>
-    Last modified: <time>2026-05-22</time>
+    Last modified: <time>2026-05-23</time>
   </p>
 
   <h2>Preface</h2>
@@ -330,6 +330,249 @@
       &ldquo;Update files&rdquo;). When a change bundles multiple
       distinct decisions, the skill suggests splitting into separate
       commits so each decision gets its own message.
+    </p>
+  </section>
+
+  <section class="log-entry" id="nuclei-system">
+    <h2>Entry 10 &mdash; The nuclei system: move the nucleus into a shared, public repo</h2>
+
+    <p>
+      The nucleus was sitting at <code>personal-nucleus.html</code>
+      inside the wiki repo. That made it private to this sprite, hard
+      to share, and impossible to <em>steal from</em> &mdash; the
+      captain&rsquo;s log model only pays off when the log is
+      discoverable to other systems. The shift: move the nucleus to
+      its own public repo (<code>github.com/rphilander/nuclei</code>),
+      cloned locally to <code>/home/sprite/nuclei/</code>, with the
+      wiki repo recording the file&rsquo;s deletion and the nuclei
+      repo owning history going forward.
+    </p>
+
+    <p>
+      The repo holds multiple nuclei (one per system) plus a CLAUDE.md
+      spec, a CC BY 4.0 LICENSE, and a <code>skills/</code> directory
+      of shared slash-command skills. The conceptual model is three
+      pieces: the <strong>local system</strong> (a project with its
+      own git repo, like this wiki), the <strong>local nucleus</strong>
+      (its decision log, one HTML file in the nuclei repo), and the
+      <strong>remote nuclei</strong> (every other system&rsquo;s log,
+      available to learn from or steal from).
+    </p>
+
+    <p>
+      The bridge between a sprite and the nuclei repo is a
+      <code>.nuclei.json</code> config at the sprite&rsquo;s root,
+      declaring the local system&rsquo;s identity, nucleus filename,
+      and both repo paths. Shared skills read this config to
+      auto-discover. Skills (<code>/nucleus-update</code>,
+      <code>/nucleus-scan-for-steals</code>) live in the nuclei repo
+      and are symlinked into each sprite&rsquo;s
+      <code>~/.claude/skills/</code> &mdash; symlinks themselves are
+      gitignored as per-sprite installation artifacts.
+    </p>
+
+    <p>
+      The local <code>/evening</code> skill became a thin wrapper
+      that delegates to <code>/nucleus-update</code>. The pattern is:
+      system-specific orchestrators (<code>/morning</code>,
+      <code>/evening</code>) stay local on each sprite and own the
+      system-specific intel sources and judgment; shared skills
+      handle the nucleus-protocol mechanics. Same intent as the
+      proposal pattern from
+      <a href="work-snapshot.html#the-nucleus-itself">work Entry 19</a>
+      &mdash; separate the judgment from the placement.
+    </p>
+
+    <p>
+      Cross-sprite idea-stealing flows through this surface:
+      <code>/nucleus-scan-for-steals</code> pulls the nuclei repo,
+      compares each remote nucleus against a per-sprite cursor at
+      <code>~/.config/nuclei-cursor.json</code>, surfaces new entries
+      with steal/skip/defer dispositions, and hands confirmed steals
+      to <code>/nucleus-update</code> for placement with an
+      attribution cross-reference. The nucleus <em>is</em> the feed
+      &mdash; no separate RSS/webhook layer needed.
+    </p>
+  </section>
+
+  <section class="log-entry" id="memory-in-repo">
+    <h2>Entry 11 &mdash; System-coupled rules belong in the repo, not in private memory</h2>
+
+    <p>
+      Claude Code has a built-in memory mechanism &mdash; structured
+      per-rule files at <code>.claude/projects/&lt;encoded-dir&gt;/memory/</code>,
+      each with frontmatter (name, description, type) and a Why /
+      How-to-apply discipline. The harness auto-loads
+      <code>MEMORY.md</code> as an index; individual memory files
+      are consulted by Claude on demand when they seem relevant.
+      That location was wholesale gitignored, which made every
+      memory file private to one Claude instance on one sprite.
+    </p>
+
+    <p>
+      The bug in framing: not all memory is operator-private. Some
+      rules are <em>system-coupled</em> &mdash; they capture how
+      Claude must behave to operate the system correctly, and they
+      should propagate with the system to any sprite or any future
+      Claude. Treating those as private was costing portability.
+    </p>
+
+    <p>
+      The reframe: memory holds two kinds of content.
+      (1) <strong>Operator-private preferences</strong> &mdash;
+      actually personal, no system attached.
+      (2) <strong>System-coupled behavioral rules</strong> &mdash;
+      integral to how this system works. The format is the same;
+      the appropriate storage is not. Mechanism: keep the
+      harness&rsquo;s memory directory exactly where it is, but
+      un-gitignore it. A narrow gitignore exception
+      (<code>!.claude/projects/-home-sprite/memory/</code>) tracks
+      the memory files while leaving session transcripts and
+      subagent state ignored. Genuinely private memories later can
+      be ignored individually.
+    </p>
+
+    <p>
+      One subtlety about how memory loads: the index is auto-loaded
+      each session, but individual memory files are only consulted
+      when Claude judges them relevant. For hard rules
+      (don&rsquo;t bash-restart the wiki), that&rsquo;s not enough
+      &mdash; you want the rule to fire before the action, not be
+      retrieved after-the-fact. Workaround: the local CLAUDE.md
+      (auto-loaded in full, every session) gets a brief
+      &ldquo;Operating discipline&rdquo; section that prompts Claude
+      to consult the memory directory before any disruptive action.
+      The discipline section is the trigger; the memory file is the
+      content.
+    </p>
+
+    <p>
+      Three layers, no redundancy:
+      <strong>CLAUDE.md</strong> for orientation and triggers,
+      <strong>memory/</strong> for structured granular rules (now
+      in the repo), <strong>the nucleus</strong> for the durable,
+      public, captain&rsquo;s-log record of decisions
+      (cross-references back to memory where applicable). Memory
+      and nucleus describe the same content at different audiences:
+      memory is for Claude operating <em>now</em>, the nucleus is
+      for Claude (or human) understanding <em>later</em>.
+    </p>
+  </section>
+
+  <section class="log-entry" id="restart-discipline">
+    <h2>Entry 12 &mdash; The button is the only restart path &mdash; bash kills more than ttyd</h2>
+
+    <p>
+      <a href="#self-restart">Entry 8</a> got the technical mechanism
+      right (server self-restart via <code>process.exit(0)</code>
+      handled by Sprite&rsquo;s supervisor) but undersold the
+      operational consequence. The lesson learned through experience
+      today: <em>any</em> bash-initiated restart of the wiki service
+      &mdash; including the
+      <code>sprite-env services restart wiki</code> that produced
+      Entry 8&rsquo;s cgroup error &mdash; cascades farther than
+      expected.
+    </p>
+
+    <p>
+      The cascade: bash restart kills the node server &rarr; that
+      breaks the ttyd reverse-proxy WebSocket &rarr; the terminal
+      pane&rsquo;s shell session terminates &rarr; whatever Claude
+      Code session was running in that terminal is killed mid-turn
+      &rarr; conversation-history-to-disk has a race where the final
+      turns of the dying session can be silently dropped from the
+      persisted transcript. The operator gets stranded
+      <em>and</em> loses context.
+    </p>
+
+    <p>
+      The protocol that follows: never bash-restart the wiki
+      service. Always ask the operator to click the
+      <strong>&#x27F3; (restart)</strong> button in the wiki topbar,
+      which calls <code>process.exit(0)</code> from the server
+      itself and lets the frontend deterministically poll and reload
+      the terminal iframe. The terminal session still ends (the
+      iframe reloads), but the operator stays in one browser tab,
+      can run <code>claude --resume</code>, and the history-write
+      race doesn&rsquo;t affect the new session.
+    </p>
+
+    <p>
+      Only acceptable exception: emergency recovery when the server
+      is in a half-broken state and the button isn&rsquo;t
+      reachable (e.g., 502 Bad Gateway). After such a recovery,
+      return to the button-only protocol.
+    </p>
+
+    <p>
+      The rule lives operationally as
+      <code>memory/feedback_wiki_restart.md</code> (per
+      <a href="#memory-in-repo">Entry 11</a>) and is referenced by
+      the Operating discipline section of CLAUDE.md so it fires
+      before the action, not after. The lesson here is broader than
+      restarts: any action that traverses the reverse-proxy can
+      cascade through the terminal session and the writeable
+      conversation buffer. &ldquo;Just restart it&rdquo; is rarely
+      &ldquo;just.&rdquo;
+    </p>
+  </section>
+
+  <section class="log-entry" id="live-reload-chokidar">
+    <h2>Entry 13 &mdash; Live-reload via chokidar: filesystem-as-database needs filesystem-as-event-source</h2>
+
+    <p>
+      The wiki treats the filesystem as the database (per
+      <a href="work-snapshot.html#foundation">work Entry 0</a>) and
+      edits to content files are the normal way the system evolves.
+      Without live reload, every edit required a manual page refresh
+      to see the result &mdash; tolerable for a one-off but
+      corrosive over the course of a session because the feedback
+      loop is interrupted at exactly the moment you want to verify a
+      change. The work LLM wiki had filesystem watching from early
+      on and it didn&rsquo;t make the port over. Today it did.
+    </p>
+
+    <p>
+      Implementation choice: chokidar over Node&rsquo;s built-in
+      <code>fs.watch</code>. Reason: <code>fs.watch</code>&rsquo;s
+      recursive option is unreliable on Linux (silently drops
+      events, inconsistent for nested directory creation). chokidar
+      normalizes across platforms and handles the corner cases that
+      would otherwise have to be re-invented. The trade-off is one
+      dependency for a behavior that&rsquo;s table stakes.
+    </p>
+
+    <p>
+      Two parameters that matter operationally. (1) Ignored
+      patterns: dotfiles, <code>node_modules</code>,
+      <code>_app/run/</code>, <code>_uploads/</code>. Without these,
+      the watcher fires constantly on session-state files Claude
+      writes (in <code>.claude/</code>) and on PID/log files the
+      wiki service rewrites. (2) Debounce +
+      <code>awaitWriteFinish</code>. Editor saves typically produce
+      a burst of FS events (temp file, atomic rename, etc.);
+      coalescing into a single broadcast at the end prevents reload
+      thrash.
+    </p>
+
+    <p>
+      The frontend already had a <code>reload</code> message handler
+      in the WebSocket from earlier; the new code just wires
+      <code>chokidar.on('all')</code> to
+      <code>broadcast({type:'reload'})</code> through the existing
+      <code>wsClients</code> set. That meant the server-side change
+      was tight and the client-side change was nothing &mdash; the
+      capability was latent, waiting for a trigger.
+    </p>
+
+    <p>
+      Consequence: the manual &darr; refresh button in the topbar
+      became redundant and was removed. The &#x27F3; server-restart
+      button stays &mdash; different purpose (forces the node
+      server to exit and Sprite to bring it back up, per
+      <a href="#self-restart">Entry 8</a>). Two buttons that looked
+      similar but were doing different jobs; collapsing them
+      clarifies the affordance.
     </p>
   </section>
 
