@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="nucleus-system" content="truespeech-console">
-  <meta name="nucleus-updated" content="2026-05-24">
+  <meta name="nucleus-updated" content="2026-06-12">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.conditional.min.css">
   <title>Nucleus &mdash; truespeech-console</title>
 </head>
@@ -12,7 +12,7 @@
     <h1>Nucleus</h1>
     <p class="meta">
       Author: Rodrigo<br>
-      Last modified: <time>2026-05-24</time>
+      Last modified: <time>2026-06-12</time>
     </p>
 
     <h2>Preface</h2>
@@ -55,6 +55,105 @@
 
     <!-- Entries land here as decisions accumulate. /nucleus-update
          is the primary mechanism; manual additions are fine too. -->
+
+    <section class="log-entry" id="static-serve-for-html-demos">
+      <h2>Entry 0 &mdash; Static-serve from <code>/home/sprite</code>, not <code>/api/page</code>, for HTML demos</h2>
+
+      <p>
+        The personal LLM wiki's <code>/api/page</code> endpoint
+        (<a href="personal.html#minimal-viewer-and-cli">personal Entry 1</a>)
+        served every kind of content &mdash; HTML, Markdown, CSV, images
+        &mdash; wrapped in a single response. That worked because wiki
+        content was small, self-contained pages. It would break here: the
+        primary content the console needs to show is the
+        <em>truespeech.github.io</em> demo (<code>regions.html</code>,
+        <code>truespeech.html</code>), and those pages load their own JS
+        modules and CSS via relative paths
+        (<code>truespeech/dist/main.js</code>,
+        <code>images/truespeech-architecture.png</code>, etc.). If the
+        iframe URL is
+        <code>/api/page?path=/truespeech.github.io/regions.html</code>,
+        the relative imports resolve against
+        <code>/api/page?path=/...</code> and produce 404s on every asset.
+      </p>
+
+      <p>
+        The fix is a split.
+        <code>express.static('/home/sprite', { dotfiles: 'ignore' })</code>
+        serves any file under the home tree at its actual URL path. HTML
+        files load via that mount &mdash; the iframe points at
+        <code>/truespeech.github.io/regions.html</code> directly and the
+        relative imports work. <code>/api/page</code> handles only the
+        things that need transformation: Markdown via markdown-it, source
+        files highlighted via highlight.js, plain-text fallback for
+        everything else. The frontend routes per file extension &mdash;
+        HTML goes to the static URL, everything else through
+        <code>/api/page</code>.
+      </p>
+
+      <p>
+        Two consequences worth naming. (1) <code>express.static</code>'s
+        <code>dotfiles: 'ignore'</code> option is load-bearing &mdash;
+        without it, <code>GET /.github_token</code> would happily return
+        the PAT. The nav filter already hides dotfiles client-side, but
+        the HTTP layer needs its own independent guard. (2)
+        <code>/api/page</code> still validates the request path with
+        <code>safePath()</code> (resolve against <code>HOME</code>, reject
+        anything that escapes) per
+        <a href="work-snapshot.html#minimal-viewer-and-cli">work Entry 1</a>,
+        even though static-serve is the more common surface. Both paths
+        get the discipline.
+      </p>
+
+      <p>
+        The wider lesson: when the content the system serves is itself
+        <em>code that loads more code</em>, the URL the browser sees has
+        to be the URL the code expects. Wrapping in an API endpoint is
+        fine for inert content; not fine for live applications.
+      </p>
+    </section>
+
+    <section class="log-entry" id="ttyd-and-tsconsole-as-separate-services">
+      <h2>Entry 1 &mdash; ttyd and tsconsole as separate sprite services, not one</h2>
+
+      <p>
+        Per <a href="personal.html#sprite-services">personal Entry 6</a>,
+        sprite services give external reachability (via
+        <code>--http-port</code>) and auto-restart on crash. Here we register
+        <em>two</em> services rather than one: <code>ttyd</code> (the
+        terminal backend) and <code>tsconsole</code> (the Node server), with
+        <code>--needs ttyd</code> on the latter so the supervisor starts
+        them in dependency order. Only <code>tsconsole</code> declares
+        <code>--http-port 3000</code> &mdash; ttyd has no externally visible
+        port; it's reachable only through tsconsole's same-origin
+        reverse-proxy at <code>/term/*</code>.
+      </p>
+
+      <p>
+        Two payoffs. (1) Each service has its own crash-recovery loop &mdash;
+        when the Node server self-restarts via <code>process.exit(0)</code>
+        (lifted from <a href="personal.html#self-restart">personal Entry 8</a>),
+        ttyd stays up; the embedded terminal reconnects automatically once
+        the proxy comes back. (2) The operator's browser sees exactly one
+        URL surface (<code>truespeech-lexicon-bk5b2.sprites.app</code>)
+        &mdash; the ttyd port is implementation detail.
+      </p>
+
+      <p>
+        One <code>--args</code> gotcha worth recording so future-Claude
+        doesn't re-step on it (already documented in
+        <a href="personal.html#sprite-services">personal Entry 6</a>, but it
+        bit hard enough to mention again): <code>sprite-env</code> splits
+        the args list on commas, so any individual arg value containing a
+        comma gets shredded into separate args. The ttyd font-family arg
+        <code>fontFamily=Menlo,Monaco,Consolas,monospace</code> would have
+        become four args; the workaround was to skip the font family
+        entirely (it's cosmetic) and pass only <code>fontSize=14</code>
+        along with <code>rendererType=canvas</code>
+        (<a href="work-snapshot.html#xterm-canvas-renderer">work Entry 16</a>'s
+        pin).
+      </p>
+    </section>
   </main>
 </body>
 </html>
