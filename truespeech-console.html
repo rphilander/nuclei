@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="nucleus-system" content="truespeech-console">
+  <meta name="nucleus-updated" content="2026-05-24">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.conditional.min.css">
+  <title>Nucleus &mdash; truespeech-console</title>
+</head>
+<body>
+  <main class="pico container" data-theme="light">
+    <h1>Nucleus</h1>
+    <p class="meta">
+      Author: Rodrigo<br>
+      Last modified: <time>2026-05-24</time>
+    </p>
+
+    <h2>Preface</h2>
+    <p>
+      This document captures the decisions and reasoning behind
+      <strong>truespeech-console</strong> &mdash; a filesystem-served
+      three-pane viewer (left nav, content, terminal) plus an image
+      bridge, running on the <code>truespeech-lexicon</code> sprite to
+      support active development of the TrueSpeech language and lexicon.
+      The system mirrors the personal LLM wiki's architecture
+      (Node+Express on port 3000, vanilla JS frontend, ttyd
+      reverse-proxied at <code>/term/*</code>, registered as sprite
+      services) but is scoped narrowly to the TrueSpeech development
+      work: viewing demo pages, browsing the source repos, maintaining
+      a roadmap and bug registry, and bridging screenshots from the
+      operator's MacBook clipboard into the VM filesystem.
+    </p>
+    <p>
+      The system was adapted from the personal LLM wiki's nucleus
+      (<a href="personal.html">personal.html</a>) with deliberate
+      omissions &mdash; no workstream hierarchy, no action items, no
+      proposal pattern, no <code>/morning</code> or <code>/evening</code>
+      orchestrators, no showcase index, no two-zones split. Those were
+      features specific to the LLM-wiki framing; the console's use
+      case is narrower. Most of what carried over is the
+      <em>infrastructure</em> (Express + ttyd + sprite services +
+      same-origin iframe + chokidar live-reload + image bridge) rather
+      than the wiki-specific surface.
+    </p>
+    <p>
+      The audience for this nucleus is a future Claude (or other model)
+      rebuilding, extending, or stealing from the system. Entries
+      accumulate as decisions get made; the expected cadence is "most
+      days nothing nucleus-worthy happens." <code>/nucleus-update</code>
+      reads recent git activity and proposes entries when something
+      crosses the bar.
+    </p>
+
+    <hr>
+
+    <!-- Entries land here as decisions accumulate. /nucleus-update
+         is the primary mechanism; manual additions are fine too. -->
+  </main>
+</body>
+</html>
